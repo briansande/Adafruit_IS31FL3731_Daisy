@@ -7,6 +7,7 @@ using namespace daisy;
 
 DaisySeed  hw;
 IS31FL3731 ledmatrix;
+IS31FL3731_Graphics display;
 
 const uint32_t UPDATE_DELAY = 50;
 
@@ -41,16 +42,15 @@ int main(void)
         return -1;
     }
 
+    display.clear();
+    System::Delay(100);
+
     int16_t x          = 0;
     int16_t y          = 0;
     uint8_t frame      = 0;
     bool    use_frame2 = false;
 
-    uint8_t       brightness[16][9] = {0};
-    const uint8_t FADE_AMOUNT       = 60;
-
-    ledmatrix.setFrame(frame);
-    ledmatrix.clear();
+    const uint8_t FADE_AMOUNT = 60;
 
     while(1)
     {
@@ -60,21 +60,15 @@ int main(void)
         {
             for(int16_t px = 0; px < 16; px++)
             {
-                if(brightness[px][py] > FADE_AMOUNT)
+                if(display.width() * display.height() > 0)
                 {
-                    brightness[px][py] -= FADE_AMOUNT;
+                    display.setPixel(px, py, 0);
                 }
-                else
-                {
-                    brightness[px][py] = 0;
-                }
-                ledmatrix.drawPixel(px, py, brightness[px][py]);
             }
         }
 
-        brightness[x][y] = 255;
-        ledmatrix.drawPixel(x, y, 255);
-        ledmatrix.displayFrame(frame);
+        display.setPixel(x, y, 255);
+        display.update();
 
         x++;
         if(x >= 16)
@@ -83,8 +77,9 @@ int main(void)
             y++;
             if(y >= 9)
             {
-                y          = 0;
+                y = 0;
                 use_frame2 = !use_frame2;
+
                 if(use_frame2)
                 {
                     frame = 1;
@@ -93,8 +88,10 @@ int main(void)
                 {
                     frame = 0;
                 }
-                ledmatrix.setFrame(frame);
-                ledmatrix.clear();
+
+                display.setFrame(frame);
+                display.clear();
+
                 for(int16_t py = 0; py < 9; py++)
                 {
                     for(int16_t px = 0; px < 16; px++)

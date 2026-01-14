@@ -3,7 +3,8 @@ TARGET = is31fl3731_demo
 
 # Sources
 CPP_SOURCES = examples/basic_demo.cpp \
-              lib/is31fl3731/is31fl3731.cpp
+               lib/is31fl3731/is31fl3731.cpp \
+               lib/is31fl3731_graphics/IS31FL3731_Graphics.cpp
 
 # Library Locations
 LIBDAISY_DIR = ../../libDaisy/
