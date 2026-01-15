@@ -7,6 +7,7 @@ using namespace daisy;
 
 DaisySeed  hw;
 IS31FL3731 ledmatrix;
+IS31FL3731_Graphics display;
 
 const uint32_t UPDATE_DELAY = 50;
 
@@ -41,68 +42,93 @@ int main(void)
         return -1;
     }
 
-    int16_t x          = 0;
-    int16_t y          = 0;
-    uint8_t frame      = 0;
-    bool    use_frame2 = false;
-
-    uint8_t       brightness[16][9] = {0};
-    const uint8_t FADE_AMOUNT       = 60;
-
-    ledmatrix.setFrame(frame);
-    ledmatrix.clear();
+    uint32_t demo_time = System::GetNow();
+    int demo_mode = 0;
+    const uint8_t BRIGHTNESS = 200;
+    int ball_x = 0;
+    int ball_y = 4;
+    int ball_dir = 1;
+    uint8_t fade_counter = 0;
 
     while(1)
     {
-        System::Delay(UPDATE_DELAY);
-
-        for(int16_t py = 0; py < 9; py++)
+        uint32_t current_time = System::GetNow();
+        
+        if(current_time - demo_time > 3000)
         {
-            for(int16_t px = 0; px < 16; px++)
-            {
-                if(brightness[px][py] > FADE_AMOUNT)
-                {
-                    brightness[px][py] -= FADE_AMOUNT;
-                }
-                else
-                {
-                    brightness[px][py] = 0;
-                }
-                ledmatrix.drawPixel(px, py, brightness[px][py]);
-            }
+            demo_time = current_time;
+            demo_mode = (demo_mode + 1) % 8;
+            display.clear();
+            display.update();
+            ball_x = 0;
+            fade_counter = 0;
         }
 
-        brightness[x][y] = 255;
-        ledmatrix.drawPixel(x, y, 255);
-        ledmatrix.displayFrame(frame);
-
-        x++;
-        if(x >= 16)
+        switch(demo_mode)
         {
-            x = 0;
-            y++;
-            if(y >= 9)
-            {
-                y          = 0;
-                use_frame2 = !use_frame2;
-                if(use_frame2)
+            case 0:
+                display.drawLine(0, 0, 15, 8, BRIGHTNESS);
+                display.drawLine(15, 0, 0, 8, BRIGHTNESS);
+                display.update();
+                System::Delay(UPDATE_DELAY);
+                break;
+
+            case 1:
+                display.drawRect(2, 2, 12, 5, BRIGHTNESS, false);
+                display.update();
+                System::Delay(UPDATE_DELAY);
+                break;
+
+            case 2:
+                display.drawRect(3, 2, 10, 5, BRIGHTNESS, true);
+                display.update();
+                System::Delay(UPDATE_DELAY);
+                break;
+
+            case 3:
+                display.drawCircle(8, 4, 3, BRIGHTNESS, false);
+                display.update();
+                System::Delay(UPDATE_DELAY);
+                break;
+
+            case 4:
+                display.drawCircle(8, 4, 3, BRIGHTNESS, true);
+                display.update();
+                System::Delay(UPDATE_DELAY);
+                break;
+
+            case 5:
+                display.drawTriangle(8, 1, 1, 7, 15, 7, BRIGHTNESS, false);
+                display.update();
+                System::Delay(UPDATE_DELAY);
+                break;
+
+            case 6:
+                display.drawEllipse(8, 4, 6, 3, BRIGHTNESS, false);
+                display.update();
+                System::Delay(UPDATE_DELAY);
+                break;
+
+            case 7:
+                display.clear();
+                
+                fade_counter += 8;
+                uint8_t brightness = (uint8_t)((fade_counter > 127) ? (255 - fade_counter) : fade_counter);
+                
+                ball_x += ball_dir;
+                if(ball_x >= 15 || ball_x <= 0)
                 {
-                    frame = 1;
+                    ball_dir *= -1;
                 }
-                else
-                {
-                    frame = 0;
-                }
-                ledmatrix.setFrame(frame);
-                ledmatrix.clear();
-                for(int16_t py = 0; py < 9; py++)
-                {
-                    for(int16_t px = 0; px < 16; px++)
-                    {
-                        brightness[px][py] = 0;
-                    }
-                }
-            }
+                
+                display.setPixel(ball_x, ball_y, brightness);
+                display.setPixel(ball_x + 1, ball_y, brightness);
+                display.setPixel(ball_x, ball_y + 1, brightness);
+                display.setPixel(ball_x + 1, ball_y + 1, brightness);
+                
+                display.update();
+                System::Delay(UPDATE_DELAY);
+                break;
         }
     }
 }

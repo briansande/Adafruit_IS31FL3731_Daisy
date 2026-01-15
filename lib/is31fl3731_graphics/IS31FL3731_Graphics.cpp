@@ -1,4 +1,4 @@
-#include "is31fl3731_graphics/IS31FL3731_Graphics.h"
+#include "IS31FL3731_Graphics.h"
 #include <string.h>
 #include <algorithm>
 
@@ -189,232 +189,102 @@ void IS31FL3731_Graphics::drawCircle(int16_t cx, int16_t cy, int16_t radius, uin
     int16_t y = radius;
     int16_t err = 1 - radius;
 
-    uint16_t total_pixels = width_ * height_;
-    uint8_t* temp_buffer = new uint8_t[total_pixels];
-    uint16_t buffer_idx = 0;
-
-    auto draw_buf_pixel = [&](int16_t bx, int16_t by) {
-        if(bx >= 0 && bx < width_ && by >= 0 && by < height_ && buffer_idx < total_pixels)
-        {
-            temp_buffer[buffer_idx++] = brightness;
-        }
-    };
-
-    while(y > 0)
-    {
-        draw_buf_pixel(cx + x, cy + y);
-        draw_buf_pixel(cx - x, cy + y);
-
-        if(err < 0)
-        {
-            x++;
-            err += 2 * y + 1;
-        }
-        else
-        {
-            y--;
-            err -= 2 * x + 1;
-        }
-    }
-
-    draw_buf_pixel(cx + radius, cy);
-
     if(fill)
     {
-        y--;
-        while(x > y)
+        while(y >= x)
         {
-            int16_t scan_start = x - y + 1;
-            for(int16_t iy = cy - y; iy <= cy + y; iy++)
-            {
-                for(int16_t ix = cx - scan_start; ix <= cx + scan_start; ix++)
-                {
-                    draw_buf_pixel(ix, iy);
-                }
-            }
+            drawHLine(cx - x, cy - y, 2 * x + 1, brightness);
+            drawHLine(cx - x, cy + y, 2 * x + 1, brightness);
+            drawHLine(cx - y, cy - x, 2 * y + 1, brightness);
+            drawHLine(cx - y, cy + x, 2 * y + 1, brightness);
 
             if(err < 0)
             {
-                x++;
-                err += 2 * y + 1;
+                err += 2 * x + 3;
             }
             else
             {
                 y--;
-                err -= 2 * x + 1;
+                err += 2 * (x - y) + 5;
             }
+            x++;
         }
     }
-
-    if(buffer_idx > 0)
+    else
     {
-        writeBuffer(temp_buffer, buffer_idx);
-    }
+        while(y >= x)
+        {
+            setPixel(cx + x, cy - y, brightness);
+            setPixel(cx - x, cy - y, brightness);
+            setPixel(cx + x, cy + y, brightness);
+            setPixel(cx - x, cy + y, brightness);
+            setPixel(cx + y, cy - x, brightness);
+            setPixel(cx - y, cy - x, brightness);
+            setPixel(cx + y, cy + x, brightness);
+            setPixel(cx - y, cy + x, brightness);
 
-    delete[] temp_buffer;
+            if(err < 0)
+            {
+                err += 2 * x + 3;
+            }
+            else
+            {
+                y--;
+                err += 2 * (x - y) + 5;
+            }
+            x++;
+        }
+    }
 }
 
 void IS31FL3731_Graphics::drawTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t brightness, bool fill)
 {
     if(fill)
     {
-        int16_t a, b, y, last;
+        int16_t coords[] = {x0, y0, x1, y1, x2, y2};
 
-        a = y1 - y0;
-        b = y2 - y0;
+        int16_t minY = min(min(y0, y1), y2);
+        int16_t maxY = max(max(y0, y1), y2);
 
-        int16_t dx01 = x1 - x0;
-        int16_t dx02 = x0 - x2;
-        int16_t dx12 = x2 - x1;
-
-        int16_t dy01 = y1 - y0;
-        int16_t dy02 = y0 - y2;
-        int16_t dy12 = y2 - y1;
-
-        int16_t sa = 0;
-        int16_t sb = 0;
-
-        bool c = false;
-
-        if(y1 < y0)
+        for(int16_t y = minY; y <= maxY; y++)
         {
-            if(y1 < y2)
-                for(int16_t x = x0; x <= x1; x++)
-                {
-                    y = x - x0;
-                    setPixel(x, y0 + y, brightness);
-                }
-            else
-                for(int16_t x = x0; x <= x2; x++)
-                {
-                    y = x - x0;
-                    setPixel(x, y0 + y, brightness);
-                }
-            c = true;
-        }
+            if(y < 0 || y >= height_)
+                continue;
 
-        if(!c)
-        {
-            if(y0 < y1)
-            {
-                if(b * a <= dy01)
-                {
-                    for(int16_t x = x0; x <= x2; x++)
-                    {
-                        setPixel(x, y0 + (a * x) / dx01, brightness);
-                    }
-                }
-                else
-                {
-                    for(int16_t x = x0; x <= x1; x++)
-                    {
-                        setPixel(x, y0 + (b * x) / dy01, brightness);
-                    }
-                }
-            }
-            else
-            {
-                if(b * a <= dy01)
-                {
-                    for(int16_t x = x0; x <= x2; x++)
-                    {
-                        setPixel(x, y0 + (a * x) / dy01, brightness);
-                    }
-                }
-                else
-                {
-                    for(int16_t x = x0; x <= x1; x++)
-                    {
-                        setPixel(x, y0 + (b * x) / dy01, brightness);
-                    }
-                }
-            }
-        }
+            int16_t xMin = width_ - 1;
+            int16_t xMax = 0;
 
-        int16_t p;
-        int16_t t;
-        int16_t q;
-        int16_t d;
+            bool foundEdge = false;
 
-        if(c)
-        {
-            d = a - b;
-            if(b > a)
+            for(int16_t i = 0; i < 3; i++)
             {
-                p = a + 1;
-                t = b;
-                q = b + d / p;
-                for(int16_t x = x2; x >= x1; x--)
-                {
-                    setPixel(x, y1 + (t * (x - x1) / d, brightness);
-                }
-            }
-            else
-            {
-                p = b + 1;
-                t = b;
-                q = b + d / p;
-                for(int16_t x = x1; x <= x2; x++)
-                {
-                    setPixel(x, y1 + (t * (x - x1) / d, brightness);
-                }
-            }
-        }
-        else
-        {
-            d = b - a;
-            if(b > a)
-            {
-                p = a + 1;
-                t = a;
-                q = a + d / p;
-                for(int16_t x = x0; x <= x2; x++)
-                {
-                    setPixel(x, y0 + (t * (x - x0)) / d, brightness);
-                }
-            }
-            else
-            {
-                p = a + 1;
-                t = a;
-                q = a + d / p;
-                for(int16_t x = x1; x <= x0; x--)
-                {
-                    setPixel(x, y0 + (t * (x - x0)) / d, brightness);
-                }
-            }
-        }
+                int16_t j = (i + 1) % 3;
+                int16_t y1_i = coords[2 * i + 1];
+                int16_t y2_j = coords[2 * j + 1];
+                int16_t x1_i = coords[2 * i];
+                int16_t x2_j = coords[2 * j];
 
-        if(c)
-        {
-            while(p < abs(b - a))
-        {
-            p++;
-            if(b < a)
-            {
-                for(int16_t x = x2; x > x1; x--)
+                if((y >= y1_i && y < y2_j) || (y >= y2_j && y < y1_i))
                 {
-                    setPixel(x, y1 + (t * (x - x1)) / d, brightness);
+                    float t = (float)(y - y1_i) / (y2_j - y1_i);
+                    int16_t x = x1_i + (int16_t)(t * (x2_j - x1_i));
+
+                    if(x < xMin)
+                        xMin = x;
+                    if(x > xMax)
+                        xMax = x;
+                    foundEdge = true;
                 }
             }
-            else
+
+            if(foundEdge)
             {
-                for(int16_t x = x1; x < x2; x++)
-                {
-                    setPixel(x, y1 + (t * (x - x1)) / d, brightness);
-                }
-            }
-            q -= d;
-            t -= q;
-            if(t < 0)
-            {
-                t += p;
-                q += p;
-            }
-            else
-            {
-                t -= p;
-                q -= p;
+                if(xMin < 0)
+                    xMin = 0;
+                if(xMax >= width_)
+                    xMax = width_ - 1;
+
+                drawHLine(xMin, y, xMax - xMin + 1, brightness);
             }
         }
     }
@@ -428,105 +298,83 @@ void IS31FL3731_Graphics::drawTriangle(int16_t x0, int16_t y0, int16_t x1, int16
 
 void IS31FL3731_Graphics::drawEllipse(int16_t cx, int16_t cy, int16_t rx, int16_t ry, uint8_t brightness, bool fill)
 {
-    uint16_t total_pixels = width_ * height_;
-    uint8_t* temp_buffer = new uint8_t[total_pixels];
-    uint16_t buffer_idx = 0;
+    if(rx < 1 || ry < 1)
+        return;
 
-    auto draw_buf_pixel = [&](int16_t bx, int16_t by) {
-        if(bx >= 0 && bx < width_ && by >= 0 && by < height_ && buffer_idx < total_pixels)
-        {
-            temp_buffer[buffer_idx++] = brightness;
-        }
-    };
+    int16_t x = 0;
+    int16_t y = ry;
+    int32_t rx2 = rx * rx;
+    int32_t ry2 = ry * ry;
+    int32_t p = ry2 - (rx2 * ry) + (rx2 / 4);
 
-    int16_t x0 = rx;
-    int16_t y0 = 0;
-
-    int16_t x1 = 0;
-    int16_t y1 = ry;
-
-    int16_t x2 = 0;
-    int16_t y2 = 2 * ry - 1;
-
-    int32_t d = 4 * (ry * ry) - (rx * rx);
-
-    while(y1 < y2)
+    while(x * ry2 < y * rx2)
     {
-        draw_buf_pixel(cx + x0, cy - y0);
-        draw_buf_pixel(cx - x0, cy - y0);
-        draw_buf_pixel(cx + x0, cy + y0);
-        draw_buf_pixel(cx - x0, cy - y0);
-
-        x0++;
-
-        if(d >= 0)
+        if(fill)
         {
-            d += 2 * rx * (x1 - x0 + 1) + (ry * ry);
-            y1++;
+            drawHLine(cx - x, cy - y, 2 * x + 1, brightness);
+            drawHLine(cx - x, cy + y, 2 * x + 1, brightness);
         }
         else
         {
-            d -= 2 * ry * (y1 - y0 + 1) + (rx * rx);
-            x0--;
+            setPixel(cx + x, cy - y, brightness);
+            setPixel(cx - x, cy - y, brightness);
+            setPixel(cx + x, cy + y, brightness);
+            setPixel(cx - x, cy + y, brightness);
         }
-    }
 
-    if(fill)
-    {
-        int16_t y = ry;
-        int32_t d = (ry * ry) - (rx * rx);
-
-        while(y > 0)
+        x++;
+        if(p < 0)
         {
-            int16_t x = 0;
-
-            draw_buf_pixel(cx + rx, cy - y);
-            draw_buf_pixel(cx - rx, cy - y);
-
-            int32_t e = (rx * rx) - (ry * ry);
-
-            while(2 * rx * y <= d)
-            {
-                draw_buf_pixel(cx + x, cy - y);
-                draw_buf_pixel(cx - x, cy - y);
-
-                x++;
-                e += 2 * ry * (1 + y);
-            }
-
-            draw_buf_pixel(cx + x, cy - y);
-            draw_buf_pixel(cx - x, cy - y);
-
-            d += (2 * rx + (2 * ry + 1) * (1 - y));
+            p += 2 * ry2 * x + ry2;
+        }
+        else
+        {
             y--;
+            p += 2 * ry2 * x - 2 * rx2 * y + ry2;
         }
     }
 
-    if(buffer_idx > 0)
-    {
-        writeBuffer(temp_buffer, buffer_idx);
-    }
+    p = ry2 * (x + 0.5) * (x + 0.5) + rx2 * (y - 1) * (y - 1) - rx2 * ry2;
 
-    delete[] temp_buffer;
+    while(y >= 0)
+    {
+        if(fill)
+        {
+            drawHLine(cx - x, cy - y, 2 * x + 1, brightness);
+            drawHLine(cx - x, cy + y, 2 * x + 1, brightness);
+        }
+        else
+        {
+            setPixel(cx + x, cy - y, brightness);
+            setPixel(cx - x, cy - y, brightness);
+            setPixel(cx + x, cy + y, brightness);
+            setPixel(cx - x, cy + y, brightness);
+        }
+
+        y--;
+        if(p > 0)
+        {
+            p += -2 * rx2 * y + rx2;
+        }
+        else
+        {
+            x++;
+            p += 2 * ry2 * x - 2 * rx2 * y + rx2;
+        }
+    }
 }
 
 void IS31FL3731_Graphics::drawRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint8_t brightness, bool fill)
 {
+    if(w < 1 || h < 1)
+        return;
+
+    if(r < 0)
+        r = 0;
     if(r * 2 > w)
         r = w / 2;
     if(r * 2 > h)
         r = h / 2;
-
-    uint16_t total_pixels = width_ * height_;
-    uint8_t* temp_buffer = new uint8_t[total_pixels];
-    uint16_t buffer_idx = 0;
-
-    auto draw_buf_pixel = [&](int16_t bx, int16_t by) {
-        if(bx >= 0 && bx < width_ && by >= 0 && by < height_ && buffer_idx < total_pixels)
-        {
-            temp_buffer[buffer_idx++] = brightness;
-        }
-    };
 
     int16_t x1 = x + r;
     int16_t y1 = y + r;
@@ -535,33 +383,162 @@ void IS31FL3731_Graphics::drawRoundRect(int16_t x, int16_t y, int16_t w, int16_t
 
     if(fill)
     {
-        drawRect(x + 1, y + 1, w - 2, h - 2, brightness, true);
+        for(int16_t iy = y1; iy <= y2; iy++)
+        {
+            drawHLine(x1, iy, x2 - x1 + 1, brightness);
+        }
 
-        drawLine(x1, y, x2, y, brightness);
-        drawRect(x1 + 1, y + 1, x2 - x1, y2 - y, brightness, true);
-        drawLine(x, y1, x, y2, brightness);
-        drawRect(x + 1, y1 + 1, w - 2, y2 - y1, brightness, true);
+        for(int16_t iy = y; iy <= y2; iy++)
+        {
+            for(int16_t ix = x; ix < x1; ix++)
+            {
+                int16_t dx = x1 - ix;
+                int16_t dy = iy - y1;
+                if(dx * dx + dy * dy <= r * r)
+                {
+                    setPixel(ix, iy, brightness);
+                }
+            }
+        }
+
+        for(int16_t iy = y; iy <= y2; iy++)
+        {
+            for(int16_t ix = x2 + 1; ix <= x + w - 1; ix++)
+            {
+                int16_t dx = ix - x2;
+                int16_t dy = iy - y1;
+                if(dx * dx + dy * dy <= r * r)
+                {
+                    setPixel(ix, iy, brightness);
+                }
+            }
+        }
+
+        for(int16_t iy = y2 + 1; iy <= y + h - 1; iy++)
+        {
+            for(int16_t ix = x; ix < x1; ix++)
+            {
+                int16_t dx = x1 - ix;
+                int16_t dy = iy - y2;
+                if(dx * dx + dy * dy <= r * r)
+                {
+                    setPixel(ix, iy, brightness);
+                }
+            }
+        }
+
+        for(int16_t iy = y2 + 1; iy <= y + h - 1; iy++)
+        {
+            for(int16_t ix = x2 + 1; ix <= x + w - 1; ix++)
+            {
+                int16_t dx = ix - x2;
+                int16_t dy = iy - y2;
+                if(dx * dx + dy * dy <= r * r)
+                {
+                    setPixel(ix, iy, brightness);
+                }
+            }
+        }
     }
     else
     {
         drawLine(x1, y, x2, y, brightness);
-        drawLine(x2, y, x, y2, brightness);
-        drawRect(x1 + 1, y + 1, x2 - x1, y2 - y, brightness, true);
-        drawLine(x, y1, x, y2, brightness);
-        drawRect(x + 1, y1 + 1, w - 2, y2 - y1, brightness, true);
+        drawLine(x2, y, x2, y2, brightness);
+        drawLine(x2, y2, x1, y2, brightness);
+        drawLine(x1, y2, x1, y, brightness);
+
+        int16_t cx = x + r;
+        int16_t cy = y + r;
+        int16_t c_x = 0;
+        int16_t c_y = r;
+        int32_t p = 1 - r;
+
+        while(c_y >= c_x)
+        {
+            setPixel(cx + c_x, cy - c_y, brightness);
+            setPixel(cx - c_x, cy - c_y, brightness);
+
+            c_x++;
+            if(p < 0)
+            {
+                p += 2 * c_x + 1;
+            }
+            else
+            {
+                c_y--;
+                p += 2 * (c_x - c_y) + 1;
+            }
+        }
+
+        cx = x + w - 1 - r;
+        cy = y + r;
+        c_x = 0;
+        c_y = r;
+        p = 1 - r;
+
+        while(c_y >= c_x)
+        {
+            setPixel(cx + c_x, cy - c_y, brightness);
+            setPixel(cx - c_x, cy - c_y, brightness);
+
+            c_x++;
+            if(p < 0)
+            {
+                p += 2 * c_x + 1;
+            }
+            else
+            {
+                c_y--;
+                p += 2 * (c_x - c_y) + 1;
+            }
+        }
+
+        cx = x + r;
+        cy = y + h - 1 - r;
+        c_x = 0;
+        c_y = r;
+        p = 1 - r;
+
+        while(c_y >= c_x)
+        {
+            setPixel(cx + c_x, cy + c_y, brightness);
+            setPixel(cx - c_x, cy + c_y, brightness);
+
+            c_x++;
+            if(p < 0)
+            {
+                p += 2 * c_x + 1;
+            }
+            else
+            {
+                c_y--;
+                p += 2 * (c_x - c_y) + 1;
+            }
+        }
+
+        cx = x + w - 1 - r;
+        cy = y + h - 1 - r;
+        c_x = 0;
+        c_y = r;
+        p = 1 - r;
+
+        while(c_y >= c_x)
+        {
+            setPixel(cx + c_x, cy + c_y, brightness);
+            setPixel(cx - c_x, cy + c_y, brightness);
+
+            c_x++;
+            if(p < 0)
+            {
+                p += 2 * c_x + 1;
+            }
+            else
+            {
+                c_y--;
+                p += 2 * (c_x - c_y) + 1;
+            }
+        }
     }
-
-    drawCircle(x + r, y + r, r, brightness, false);
-    drawCircle(x + w - 1 - r, y + r, r, brightness, false);
-    drawCircle(x + r, y + h - 1 - r, r, brightness, false);
-    drawCircle(x + w - 1 - r, y + h - 1 - r, r, brightness, false);
-
-    if(buffer_idx > 0)
-    {
-        writeBuffer(temp_buffer, buffer_idx);
-    }
-
-    delete[] temp_buffer;
 }
 
 void IS31FL3731_Graphics::fadeAll(uint8_t target, uint8_t step)
@@ -608,11 +585,12 @@ void IS31FL3731_Graphics::fadePixel(int16_t x, int16_t y, uint8_t target, uint8_
         return;
 
     uint16_t led_num = x + y * width_;
-    uint8_t current = driver_->getLEDPWM(led_num, frame_);
     
-    if(current != target)
+    while(brightness_cache_[led_num] != target)
     {
+        uint8_t current = brightness_cache_[led_num];
         uint8_t next_val;
+        
         if(current < target)
             next_val = min(target, current + step);
         else
